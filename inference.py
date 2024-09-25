@@ -8,6 +8,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray
 from cv_bridge import CvBridge
 from collections import deque
+import cv2
 
 class RobotController:
     def __init__(self, model, device, transform, sequence_length=5, num_joints=6):
@@ -85,7 +86,7 @@ class RobotController:
                 # Predict next target position
                 self.model.eval()
                 with torch.no_grad():
-                    predicted_actions = self.model(imgs, qposes)  # [sequence_length, 1, 3]
+                    predicted_actions, _ = self.model(imgs, qposes, actions=None)
 
                 # Get the last predicted action
                 next_target = predicted_actions[-1, 0, :]  # [3]
@@ -110,8 +111,6 @@ def main(args):
         transforms.ToPILImage(),
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
     ])
 
     # Initialize Model
@@ -119,6 +118,7 @@ def main(args):
         input_image_size=(224, 224),
         num_joints=args.num_joints,
         hidden_dim=args.hidden_dim,
+        latent_dim=args.latent_dim,
         num_heads=args.num_heads,
         num_layers=args.num_layers,
         dropout=args.dropout,
@@ -141,14 +141,14 @@ def main(args):
 
 if __name__ == "__main__":
     import sys
-    import cv2  # Ensure OpenCV is imported
 
-    parser = argparse.ArgumentParser(description="Inference for ACT Policy")
+    parser = argparse.ArgumentParser(description="Inference for ACT Policy with CVAE")
     parser.add_argument('--checkpoint_path', type=str, required=True, help='Path to the trained model checkpoint')
     parser.add_argument('--num_joints', type=int, default=6, help='Number of robot joints')
     parser.add_argument('--hidden_dim', type=int, default=256, help='Hidden dimension size')
+    parser.add_argument('--latent_dim', type=int, default=64, help='Dimension of latent space in CVAE')
     parser.add_argument('--num_heads', type=int, default=8, help='Number of attention heads')
-    parser.add_argument('--num_layers', type=int, default=4, help='Number of Transformer encoder layers')
+    parser.add_argument('--num_layers', type=int, default=4, help='Number of Transformer encoder/decoder layers')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
     parser.add_argument('--sequence_length', type=int, default=5, help='Sequence length for the ACT model')
 
